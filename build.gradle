@@ -30,7 +30,7 @@ java {
 }
 
 group = "io.kestra.plugin"
-description = 'Plugin template for Kestra'
+description = 'Ollama plugin for Kestra'
 
 tasks.withType(JavaCompile).configureEach {
     options.encoding = "UTF-8"
@@ -98,6 +98,8 @@ dependencies {
     testImplementation "org.junit.jupiter:junit-jupiter-engine"
     testImplementation "org.hamcrest:hamcrest"
     testImplementation "org.hamcrest:hamcrest-library"
+
+    testImplementation 'org.testcontainers:ollama:1.20.6'
 }
 
 /**********************************************************************************************************************\
@@ -157,8 +159,8 @@ jar {
     manifest {
         attributes(
                 "X-Kestra-Name": project.name,
-                "X-Kestra-Title": "Template",
-                "X-Kestra-Group": project.group + ".templates",
+                "X-Kestra-Title": "Ollama",
+                "X-Kestra-Group": project.group + ".ollama",
                 "X-Kestra-Description": project.description,
                 "X-Kestra-Version": project.version
         )
