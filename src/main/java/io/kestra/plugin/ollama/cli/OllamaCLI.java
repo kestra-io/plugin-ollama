@@ -83,13 +83,6 @@ public class OllamaCLI extends Task implements RunnableTask<ScriptOutput>, Names
     protected Property<Map<String, String>> env;
 
     @Schema(
-        title = "Deprecated, use 'taskRunner' instead"
-    )
-    @PluginProperty
-    @Deprecated
-    private DockerOptions docker;
-
-    @Schema(
         title = "The task runner to use.",
         description = "Task runners are provided by plugins, each have their own properties."
     )
@@ -116,7 +109,6 @@ public class OllamaCLI extends Task implements RunnableTask<ScriptOutput>, Names
         Map<String, String> envs = getEnv(runContext);
 
         CommandsWrapper commands = new CommandsWrapper(runContext)
-            .withDockerOptions(injectDefaults(getDocker()))
             .withTaskRunner(this.taskRunner)
             .withContainerImage(DEFAULT_IMAGE)
             .withInterpreter(Property.of(List.of("/bin/sh", "-c")))
@@ -128,19 +120,6 @@ public class OllamaCLI extends Task implements RunnableTask<ScriptOutput>, Names
             .withOutputFiles(renderedOutputFiles.isEmpty() ? null : renderedOutputFiles);
 
         return commands.run();
-    }
-
-    private DockerOptions injectDefaults(DockerOptions original) {
-        if (original == null) {
-            return null;
-        }
-
-        var builder = original.toBuilder();
-        if (original.getImage() == null) {
-            builder.image(DEFAULT_IMAGE);
-        }
-
-        return builder.build();
     }
 
     private Map<String, String> getEnv(RunContext runContext) throws IOException, IllegalVariableEvaluationException {

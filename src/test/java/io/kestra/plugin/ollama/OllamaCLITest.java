@@ -34,7 +34,6 @@ class OllamaCLITest {
                 "ollama pull smollm:360m",
                 "ollama run smollm:360m \"What is your name?\" > output.txt"
             )))
-            .containerImage(Property.of("alpine/ollama"))
             .build();
 
         RunContext runContext = TestsUtils.mockRunContext(runContextFactory, task, Map.of());
