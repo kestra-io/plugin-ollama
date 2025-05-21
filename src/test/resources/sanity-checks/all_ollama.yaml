@@ -1,0 +1,16 @@
+id: all_ollama
+namespace: sanitychecks.plugin-ollama
+
+tasks:
+  - id: ollama_cli_task
+    type: io.kestra.plugin.ollama.cli.OllamaCLI
+    commands:
+      - ollama pull smollm:360m
+      - ollama run smollm:360m "Tell me about kestra" > completion.txt
+    outputFiles:
+      - completion.txt
+
+  - id: check-output
+    type: io.kestra.plugin.core.execution.Assert
+    conditions:
+      - "{{ outputs.ollama_cli_task.exitCode == 0 }}"
