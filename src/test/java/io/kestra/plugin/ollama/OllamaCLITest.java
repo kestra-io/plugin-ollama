@@ -2,13 +2,10 @@ package io.kestra.plugin.ollama;
 
 import io.kestra.core.junit.annotations.KestraTest;
 import io.kestra.core.models.property.Property;
-import io.kestra.core.models.tasks.runners.TaskRunnerDetailResult;
 import io.kestra.core.runners.RunContext;
 import io.kestra.core.runners.RunContextFactory;
 import io.kestra.core.utils.TestsUtils;
 import io.kestra.plugin.ollama.cli.OllamaCLI;
-import io.kestra.plugin.scripts.exec.scripts.models.DockerOptions;
-import io.kestra.plugin.scripts.runner.docker.Docker;
 import jakarta.inject.Inject;
 import org.junit.jupiter.api.Test;
 
