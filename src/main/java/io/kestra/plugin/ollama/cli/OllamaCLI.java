@@ -6,6 +6,7 @@ import io.kestra.core.models.annotations.Plugin;
 import io.kestra.core.models.annotations.PluginProperty;
 import io.kestra.core.models.property.Property;
 import io.kestra.core.models.tasks.*;
+import io.kestra.core.models.tasks.runners.AbstractLogConsumer;
 import io.kestra.core.models.tasks.runners.TaskRunner;
 import io.kestra.core.runners.RunContext;
 import io.kestra.plugin.scripts.exec.scripts.models.ScriptOutput;
@@ -18,6 +19,7 @@ import lombok.experimental.SuperBuilder;
 
 import jakarta.validation.constraints.NotNull;
 import java.io.IOException;
+import java.time.Instant;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -110,8 +112,9 @@ public class OllamaCLI extends Task implements RunnableTask<ScriptOutput>, Names
         CommandsWrapper commands = new CommandsWrapper(runContext)
             .withTaskRunner(this.taskRunner)
             .withContainerImage(DEFAULT_IMAGE)
-            .withInterpreter(Property.of(List.of("/bin/sh", "-c")))
-            .withBeforeCommands(Property.of(List.of("ollama serve & sleep 5")))
+            .withInterpreter(Property.ofValue(List.of("/bin/sh", "-c")))
+            .withLogConsumer(suppressStderrLogConsumer(runContext))
+            .withBeforeCommands(Property.ofValue(List.of("ollama serve & sleep 5")))
             .withCommands(this.commands)
             .withEnv(envs).withContainerImage(runContext.render(this.containerImage).as(String.class).orElseThrow())
             .withNamespaceFiles(namespaceFiles)
@@ -130,5 +133,25 @@ public class OllamaCLI extends Task implements RunnableTask<ScriptOutput>, Names
         }
 
         return envs;
+    }
+
+    private static AbstractLogConsumer suppressStderrLogConsumer(RunContext runContext) {
+        return new AbstractLogConsumer() {
+            @Override
+            public void accept(String line, Boolean isStdErr) {
+                this.accept(line, isStdErr, Instant.now());
+            }
+
+            @Override
+            public void accept(String line, Boolean isStdErr, Instant instant) {
+                if (line == null || line.trim().isEmpty()) {
+                    return;
+                }
+
+                if (!Boolean.TRUE.equals(isStdErr)) {
+                    runContext.logger().info(line);
+                }
+            }
+        };
     }
 }
