@@ -97,7 +97,7 @@ public class OllamaCLI extends Task implements RunnableTask<ScriptOutput>, Names
         description = "Defaults to 'ollama/ollama' for Ollama operations."
     )
     @Builder.Default
-    private Property<String> containerImage = Property.of(DEFAULT_IMAGE);
+    private Property<String> containerImage = Property.ofValue(DEFAULT_IMAGE);
 
     private NamespaceFiles namespaceFiles;
     private Object inputFiles;

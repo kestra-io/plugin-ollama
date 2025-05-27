@@ -27,7 +27,7 @@ class OllamaCLITest {
         OllamaCLI task = OllamaCLI.builder()
             .id(OllamaCLI.class.getSimpleName())
             .type(OllamaCLI.class.getName())
-            .commands(Property.of(List.of(
+            .commands(Property.ofValue(List.of(
                 "ollama pull smollm:360m",
                 "ollama run smollm:360m \"What is your name?\" > output.txt"
             )))
