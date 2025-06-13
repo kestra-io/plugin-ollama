@@ -62,9 +62,9 @@ import java.util.Map;
                   - id: list_models
                     type: io.kestra.plugin.ollama.cli.OllamaCLI
                     commands:
-                      - ollama list --format json > models.json
+                      - ollama list > models.txt
                     outputFiles:
-                      - models.json
+                      - models.txt
                 """
         )
     }
