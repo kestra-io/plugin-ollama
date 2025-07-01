@@ -9,6 +9,7 @@ import io.kestra.plugin.ollama.cli.OllamaCLI;
 import jakarta.inject.Inject;
 import org.junit.jupiter.api.Test;
 
+import java.net.URI;
 import java.util.List;
 import java.util.Map;
 
@@ -39,5 +40,29 @@ class OllamaCLITest {
 
         assertThat(output, notNullValue());
         assertThat(output.getExitCode(), is(0));
+    }
+
+    @Test
+    void shouldCaptureOutputFiles() throws Exception {
+        OllamaCLI task = OllamaCLI.builder()
+            .id(OllamaCLI.class.getSimpleName())
+            .type(OllamaCLI.class.getName())
+            .outputFiles(Property.ofValue(List.of("output.txt")))
+            .enableModelCaching(Property.ofValue(true))
+            .commands(Property.ofValue(List.of(
+                "ollama run smollm:360m \"What is data orchestration?\" > output.txt"
+            )))
+            .build();
+
+        RunContext runContext = TestsUtils.mockRunContext(runContextFactory, task, Map.of());
+        var output = task.run(runContext);
+
+        assertThat(output, notNullValue());
+        assertThat(output.getExitCode(), is(0));
+        assertThat(output.getOutputFiles().size(), is(1));
+        assertThat(output.getOutputFiles().containsKey("output.txt"), is(true));
+
+        URI outputFileUri = output.getOutputFiles().get("output.txt");
+        assertThat(runContext.storage().getFile(outputFileUri), notNullValue());
     }
 }
