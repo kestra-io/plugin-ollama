@@ -42,14 +42,19 @@ import java.util.stream.Stream;
                 id: ollama_flow
                 namespace: company.team
 
+                inputs:
+                  - id: prompt
+                    type: STRING
+                    defaults: Tell me a joke about AI
+
                 tasks:
                   - id: ollama_cli
                     type: io.kestra.plugin.ollama.cli.OllamaCLI
-                    commands:
-                      - ollama pull llama2
-                      - ollama run llama2 "Tell me a joke about AI" > completion.txt
                     outputFiles:
                       - completion.txt
+                    commands:
+                      - ollama pull llama2
+                      - ollama run llama2 "{{ inputs.prompt }}" > completion.txt
                 """
         ),
         @Example(
@@ -62,11 +67,50 @@ import java.util.stream.Stream;
                 tasks:
                   - id: list_models
                     type: io.kestra.plugin.ollama.cli.OllamaCLI
-                    commands:
-                      - ollama list > models.txt
                     outputFiles:
                       - models.txt
+                    commands:
+                      - ollama list > models.txt
                 """
+        ),
+        @Example(
+            full = true,
+            title = "Enable model caching between executions",
+            code = """
+                id: ollama_caching
+                namespace: company.team
+
+                inputs:
+                  - id: prompt
+                    type: STRING
+                    defaults: Tell me a joke about AI
+
+                tasks:
+                  - id: ask_ai
+                    type: io.kestra.plugin.ollama.cli.OllamaCLI
+                    enableModelCaching: true
+                    modelCachePath: /Users/kestra/.ollama
+                    outputFiles:
+                      - completion.txt
+                    commands:
+                      - ollama run gemma3:1b "{{ inputs.prompt }}" > completion.txt
+            """
+        ),
+        @Example(
+            full = true,
+            title = "List models from a remote Ollama server",
+            code = """
+                id: ollama_plugin
+                namespace: company.team
+
+                tasks:
+                  - id: list_models
+                    type: io.kestra.plugin.ollama.cli.OllamaCLI
+                    host: host.docker.internal:11434
+                    commands:
+                      - ollama list
+
+            """
         )
     }
 )
