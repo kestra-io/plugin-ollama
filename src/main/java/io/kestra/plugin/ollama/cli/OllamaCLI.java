@@ -193,7 +193,11 @@ public class OllamaCLI extends Task implements RunnableTask<ScriptOutput>, Names
             .withTaskRunner(configuredTaskRunner)
             .withContainerImage(runContext.render(this.containerImage).as(String.class).orElse(DEFAULT_IMAGE))
             .withInterpreter(Property.ofValue(List.of("/bin/sh", "-c")))
-            .withBeforeCommands(Property.ofValue(List.of("ollama serve & sleep 5")))
+            .withBeforeCommands(
+                host == null
+                    ? Property.ofValue(List.of("ollama serve & sleep 5"))
+                    : null
+            )
             .withCommands(Property.ofValue(originalCommands))
             .withEnv(envs)
             .withNamespaceFiles(namespaceFiles)
