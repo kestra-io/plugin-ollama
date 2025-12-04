@@ -1,8 +1,8 @@
 group: io.kestra.plugin.ollama
 name: "ollama"
 title: "Ollama"
-description: "This sub-group of plugins contains general tasks for working with Ollama models and features."
-body: ""
+description: "Tasks that work with Ollama models and runtime features."
+body: "Use these tasks to run Ollama models locally or on a remote host, supplying the model name, prompt, and optional server host so completions or model management commands can be orchestrated inside Kestra."
 videos: []
 createdBy: "Kestra Core Team"
 managedBy: "Kestra Core Team"
