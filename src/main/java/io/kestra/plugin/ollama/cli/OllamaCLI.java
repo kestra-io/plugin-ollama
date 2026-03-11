@@ -1,5 +1,11 @@
 package io.kestra.plugin.ollama.cli;
 
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Stream;
+
 import io.kestra.core.exceptions.IllegalVariableEvaluationException;
 import io.kestra.core.models.annotations.Example;
 import io.kestra.core.models.annotations.Plugin;
@@ -11,19 +17,12 @@ import io.kestra.core.runners.RunContext;
 import io.kestra.plugin.scripts.exec.scripts.models.ScriptOutput;
 import io.kestra.plugin.scripts.exec.scripts.runners.CommandsWrapper;
 import io.kestra.plugin.scripts.runner.docker.Docker;
+
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotNull;
 import lombok.*;
 import lombok.experimental.SuperBuilder;
-
-import jakarta.validation.constraints.NotNull;
-
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 @SuperBuilder
 @ToString
@@ -78,40 +77,40 @@ import java.util.stream.Stream;
             full = true,
             title = "Enable model caching between executions",
             code = """
-                id: ollama_caching
-                namespace: company.team
+                    id: ollama_caching
+                    namespace: company.team
 
-                inputs:
-                  - id: prompt
-                    type: STRING
-                    defaults: Tell me a joke about AI
+                    inputs:
+                      - id: prompt
+                        type: STRING
+                        defaults: Tell me a joke about AI
 
-                tasks:
-                  - id: ask_ai
-                    type: io.kestra.plugin.ollama.cli.OllamaCLI
-                    enableModelCaching: true
-                    modelCachePath: /Users/kestra/.ollama
-                    outputFiles:
-                      - completion.txt
-                    commands:
-                      - ollama run gemma3:1b "{{ inputs.prompt }}" > completion.txt
-            """
+                    tasks:
+                      - id: ask_ai
+                        type: io.kestra.plugin.ollama.cli.OllamaCLI
+                        enableModelCaching: true
+                        modelCachePath: /Users/kestra/.ollama
+                        outputFiles:
+                          - completion.txt
+                        commands:
+                          - ollama run gemma3:1b "{{ inputs.prompt }}" > completion.txt
+                """
         ),
         @Example(
             full = true,
             title = "List models from a remote Ollama server",
             code = """
-                id: ollama_plugin
-                namespace: company.team
+                    id: ollama_plugin
+                    namespace: company.team
 
-                tasks:
-                  - id: list_models
-                    type: io.kestra.plugin.ollama.cli.OllamaCLI
-                    host: host.docker.internal:11434
-                    commands:
-                      - ollama list
+                    tasks:
+                      - id: list_models
+                        type: io.kestra.plugin.ollama.cli.OllamaCLI
+                        host: host.docker.internal:11434
+                        commands:
+                          - ollama list
 
-            """
+                """
         )
     }
 )
@@ -228,8 +227,7 @@ public class OllamaCLI extends Task implements RunnableTask<ScriptOutput>, Names
 
             if (this.taskRunner instanceof Docker dockerRunner) {
                 Docker.DockerBuilder<?, ?> builder = dockerRunner.toBuilder();
-                List<String> existingVolumes = dockerRunner.getVolumes() != null ?
-                    dockerRunner.getVolumes() : new ArrayList<>();
+                List<String> existingVolumes = dockerRunner.getVolumes() != null ? dockerRunner.getVolumes() : new ArrayList<>();
 
                 existingVolumes.add(volumeSpec);
                 builder.volumes(existingVolumes);
