@@ -173,10 +173,12 @@ public class OllamaCLI extends Task implements RunnableTask<ScriptOutput>, Names
 
     @Schema(
         title = "Authentication for Ollama Cloud (Turbo)",
-        description = "Optional. When set, the task authenticates with ollama.com. " +
-            "If no `host` is specified, it defaults to https://ollama.com."
+        description = """
+            When set, the task authenticates with ollama.com.
+            If no `host` is specified, it defaults to https://ollama.com.
+            """
     )
-    @PluginProperty(dynamic = false)
+    @PluginProperty(dynamic = true)
     private Auth auth;
 
     @Override
