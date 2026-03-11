@@ -87,13 +87,13 @@ class OllamaCLITest {
             .id(OllamaCLI.class.getSimpleName() + IdUtils.create())
             .type(OllamaCLI.class.getName())
             .commands(Property.ofValue(List.of("ollama list")))
-            .auth(new OllamaCLI.Auth(Property.ofValue("api-key")))
+            .auth(OllamaCLI.Auth.builder().apiKey(Property.ofValue("api-key")).build())
             .build();
 
         RunContext runContext = TestsUtils.mockRunContext(runContextFactory, task, Map.of());
         Map<String, String> env = task.getEnv(runContext);
 
-        assertEquals("test-key", env.get("OLLAMA_API_KEY"));
+        assertEquals("api-key", env.get("OLLAMA_API_KEY"));
         assertEquals("https://ollama.com", env.get("OLLAMA_HOST"));
     }
 
@@ -104,13 +104,13 @@ class OllamaCLITest {
             .type(OllamaCLI.class.getName())
             .commands(Property.ofValue(List.of("ollama list")))
             .host(Property.ofValue("http://custom-host:11434"))
-            .auth(new OllamaCLI.Auth(Property.ofValue(System.getenv("api-key"))))
+            .auth(OllamaCLI.Auth.builder().apiKey(Property.ofValue("api-key")).build())
             .build();
 
         RunContext runContext = TestsUtils.mockRunContext(runContextFactory, task, Map.of());
         Map<String, String> env = task.getEnv(runContext);
 
-        assertEquals("test-key", env.get("OLLAMA_API_KEY"));
+        assertEquals("api-key", env.get("OLLAMA_API_KEY"));
         assertEquals("http://custom-host:11434", env.get("OLLAMA_HOST"));
     }
 
@@ -120,7 +120,7 @@ class OllamaCLITest {
         OllamaCLI task = OllamaCLI.builder()
             .id(OllamaCLI.class.getSimpleName() + IdUtils.create())
             .type(OllamaCLI.class.getName())
-            .auth(new OllamaCLI.Auth(Property.ofValue(System.getenv("OLLAMA_API_KEY"))))
+            .auth(OllamaCLI.Auth.builder().apiKey(Property.ofValue(System.getenv("OLLAMA_API_KEY"))).build())
             .commands(Property.ofValue(List.of(
                 "ollama run gpt-oss:20b \"Hello\" > output.txt"
             )))
