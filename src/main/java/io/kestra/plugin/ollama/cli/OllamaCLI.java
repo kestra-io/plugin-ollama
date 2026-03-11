@@ -1,5 +1,11 @@
 package io.kestra.plugin.ollama.cli;
 
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Stream;
+
 import io.kestra.core.exceptions.IllegalVariableEvaluationException;
 import io.kestra.core.models.annotations.Example;
 import io.kestra.core.models.annotations.Plugin;
@@ -11,8 +17,10 @@ import io.kestra.core.runners.RunContext;
 import io.kestra.plugin.scripts.exec.scripts.models.ScriptOutput;
 import io.kestra.plugin.scripts.exec.scripts.runners.CommandsWrapper;
 import io.kestra.plugin.scripts.runner.docker.Docker;
+
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotNull;
 import lombok.*;
 import lombok.experimental.SuperBuilder;
 
@@ -30,7 +38,8 @@ import java.util.stream.Stream;
 @Getter
 @NoArgsConstructor
 @Schema(
-    title = "Execute Ollama commands to interact with LLM models."
+    title = "Run Ollama CLI commands in flows",
+    description = "Executes rendered Ollama CLI commands inside the configured task runner. Starts a transient `ollama serve` when no remote host is provided and defaults to Docker-based model caching so pulls persist across runs."
 )
 @Plugin(
     examples = {
@@ -67,49 +76,49 @@ import java.util.stream.Stream;
                   - id: list_models
                     type: io.kestra.plugin.ollama.cli.OllamaCLI
                     outputFiles:
-                      - models.txt
+                      - models.json
                     commands:
-                      - ollama list > models.txt
+                      - ollama list --json > models.json
                 """
         ),
         @Example(
             full = true,
             title = "Enable model caching between executions",
             code = """
-                id: ollama_caching
-                namespace: company.team
+                    id: ollama_caching
+                    namespace: company.team
 
-                inputs:
-                  - id: prompt
-                    type: STRING
-                    defaults: Tell me a joke about AI
+                    inputs:
+                      - id: prompt
+                        type: STRING
+                        defaults: Tell me a joke about AI
 
-                tasks:
-                  - id: ask_ai
-                    type: io.kestra.plugin.ollama.cli.OllamaCLI
-                    enableModelCaching: true
-                    modelCachePath: /Users/kestra/.ollama
-                    outputFiles:
-                      - completion.txt
-                    commands:
-                      - ollama run gemma3:1b "{{ inputs.prompt }}" > completion.txt
-            """
+                    tasks:
+                      - id: ask_ai
+                        type: io.kestra.plugin.ollama.cli.OllamaCLI
+                        enableModelCaching: true
+                        modelCachePath: /Users/kestra/.ollama
+                        outputFiles:
+                          - completion.txt
+                        commands:
+                          - ollama run gemma3:1b "{{ inputs.prompt }}" > completion.txt
+                """
         ),
         @Example(
             full = true,
             title = "List models from a remote Ollama server",
             code = """
-                id: ollama_plugin
-                namespace: company.team
+                    id: ollama_plugin
+                    namespace: company.team
 
-                tasks:
-                  - id: list_models
-                    type: io.kestra.plugin.ollama.cli.OllamaCLI
-                    host: host.docker.internal:11434
-                    commands:
-                      - ollama list
+                    tasks:
+                      - id: list_models
+                        type: io.kestra.plugin.ollama.cli.OllamaCLI
+                        host: host.docker.internal:11434
+                        commands:
+                          - ollama list
 
-            """
+                """
         )
     }
 )
@@ -119,19 +128,21 @@ public class OllamaCLI extends Task implements RunnableTask<ScriptOutput>, Names
     private static final String OLLAMA_CLOUD_HOST = "https://ollama.com";
 
     @Schema(
-        title = "The commands to run."
+        title = "Commands executed by Ollama CLI",
+        description = "Rendered then executed with `/bin/sh -c` in order. Include any `sync` calls before cleanup commands if output files need to be persisted."
     )
     @NotNull
     protected Property<List<String>> commands;
 
     @Schema(
-        title = "Additional environment variables for the current process."
+        title = "Additional environment variables",
+        description = "Optional key/value pairs merged into the process environment. When `host` is set, `OLLAMA_HOST` is injected automatically."
     )
     protected Property<Map<String, String>> env;
 
     @Schema(
-        title = "The task runner to use.",
-        description = "Task runners are provided by plugins, each have their own properties."
+        title = "Task runner used for execution",
+        description = "Defaults to the Docker runner. Configure plugin-specific runner options (mounts, resources) as needed."
     )
     @PluginProperty
     @Builder.Default
@@ -139,8 +150,8 @@ public class OllamaCLI extends Task implements RunnableTask<ScriptOutput>, Names
     private TaskRunner<?> taskRunner = Docker.instance();
 
     @Schema(
-        title = "The task runner container image.",
-        description = "Defaults to 'ollama/ollama' for Ollama operations."
+        title = "Container image for the runner",
+        description = "Image used when running inside Docker. Defaults to `ollama/ollama`."
     )
     @Builder.Default
     private Property<String> containerImage = Property.ofValue(DEFAULT_IMAGE);
@@ -152,22 +163,21 @@ public class OllamaCLI extends Task implements RunnableTask<ScriptOutput>, Names
     private Property<List<String>> outputFiles;
 
     @Schema(
-        title = "Enable model caching by persisting models between executions.",
-        description = "If true, the plugin will automatically create a Docker volume mount to persist the ~/.ollama directory. "
+        title = "Persist Ollama model cache",
+        description = "Defaults to true. When enabled with the Docker runner and no remote host, mounts the Ollama models directory so pulled models are reused. Disable to avoid reusing cached models."
     )
     @Builder.Default
     private Property<Boolean> enableModelCaching = Property.ofValue(true);
 
     @Schema(
-        title = "Path for model caching.",
-        description = "If not set, caching uses a persistent named Docker volume (`kestra-ollama-cache`). " +
-            "If set, this task will mount the specified host path."
+        title = "Host path for cached models",
+        description = "Optional host path to mount for the Ollama cache when caching is enabled. If unset, uses named Docker volume `kestra-ollama-cache`."
     )
     private Property<String> modelCachePath;
 
     @Schema(
-        title = "The URL of a remote Ollama server.",
-        description = "Connects to a persistent Ollama server instead of starting a new one."
+        title = "Remote Ollama host",
+        description = "Connects to an existing Ollama server and skips starting a local `ollama serve`. Sets `OLLAMA_HOST` for commands; ensure the address is reachable from the runner."
     )
     private Property<String> host;
 
@@ -238,8 +248,7 @@ public class OllamaCLI extends Task implements RunnableTask<ScriptOutput>, Names
 
             if (this.taskRunner instanceof Docker dockerRunner) {
                 Docker.DockerBuilder<?, ?> builder = dockerRunner.toBuilder();
-                List<String> existingVolumes = dockerRunner.getVolumes() != null ?
-                    dockerRunner.getVolumes() : new ArrayList<>();
+                List<String> existingVolumes = dockerRunner.getVolumes() != null ? dockerRunner.getVolumes() : new ArrayList<>();
 
                 existingVolumes.add(volumeSpec);
                 builder.volumes(existingVolumes);
