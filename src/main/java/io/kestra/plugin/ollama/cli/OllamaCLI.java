@@ -24,6 +24,14 @@ import jakarta.validation.constraints.NotNull;
 import lombok.*;
 import lombok.experimental.SuperBuilder;
 
+import jakarta.validation.constraints.NotNull;
+
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Stream;
+
 @SuperBuilder
 @ToString
 @EqualsAndHashCode
@@ -117,6 +125,7 @@ import lombok.experimental.SuperBuilder;
 public class OllamaCLI extends Task implements RunnableTask<ScriptOutput>, NamespaceFilesInterface, InputFilesInterface, OutputFilesInterface {
     private static final String DEFAULT_IMAGE = "ollama/ollama";
     private static final String OLLAMA_CONTAINER_MODELS_PATH = "/root/.ollama";
+    private static final String OLLAMA_CLOUD_HOST = "https://ollama.com";
 
     @Schema(
         title = "Commands executed by Ollama CLI",
@@ -148,7 +157,9 @@ public class OllamaCLI extends Task implements RunnableTask<ScriptOutput>, Names
     private Property<String> containerImage = Property.ofValue(DEFAULT_IMAGE);
 
     private NamespaceFiles namespaceFiles;
+
     private Object inputFiles;
+
     private Property<List<String>> outputFiles;
 
     @Schema(
@@ -169,6 +180,16 @@ public class OllamaCLI extends Task implements RunnableTask<ScriptOutput>, Names
         description = "Connects to an existing Ollama server and skips starting a local `ollama serve`. Sets `OLLAMA_HOST` for commands; ensure the address is reachable from the runner."
     )
     private Property<String> host;
+
+    @Schema(
+        title = "Authentication for Ollama Cloud (Turbo)",
+        description = """
+            When set, the task authenticates with ollama.com.
+            If no `host` is specified, it defaults to https://ollama.com.
+            """
+    )
+    @PluginProperty(dynamic = true)
+    private Auth auth;
 
     @Override
     public ScriptOutput run(RunContext runContext) throws Exception {
@@ -237,7 +258,7 @@ public class OllamaCLI extends Task implements RunnableTask<ScriptOutput>, Names
         return this.taskRunner;
     }
 
-    private Map<String, String> getEnv(RunContext runContext) throws IllegalVariableEvaluationException {
+    public Map<String, String> getEnv(RunContext runContext) throws IllegalVariableEvaluationException {
         Map<String, String> envs = new HashMap<>();
 
         var renderedEnv = runContext.render(this.env).asMap(String.class, String.class);
@@ -250,6 +271,26 @@ public class OllamaCLI extends Task implements RunnableTask<ScriptOutput>, Names
             envs.put("OLLAMA_HOST", renderedHost);
         }
 
+        if (this.auth != null && this.auth.getApiKey() != null) {
+            envs.put("OLLAMA_API_KEY", runContext.render(this.auth.getApiKey()).as(String.class).orElseThrow());
+            envs.putIfAbsent("OLLAMA_HOST", OLLAMA_CLOUD_HOST);
+        }
+
         return envs;
+    }
+
+    @Builder
+    @Getter
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @Schema(
+        title = "Ollama Cloud authentication configuration"
+    )
+    public static class Auth {
+        @Schema(
+            title = "API Key",
+            description = "API key used to access Ollama cloud models."
+        )
+        private Property<String> apiKey;
     }
 }
