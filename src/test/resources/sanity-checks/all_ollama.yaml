@@ -1,14 +1,20 @@
 id: all_ollama
 namespace: sanitychecks.plugin-ollama
 
+inputs:
+  - id: prompt
+    type: STRING
+    defaults: Tell me a joke about AI
+
 tasks:
   - id: ollama_cli_task
     type: io.kestra.plugin.ollama.cli.OllamaCLI
-    commands:
-      - ollama pull smollm:360m
-      - ollama run smollm:360m "Tell me about kestra" > completion.txt
+    enableModelCaching: true
+    modelCachePath: /Users/kestra/.ollama
     outputFiles:
       - completion.txt
+    commands:
+      - ollama run smollm:135m "{{ inputs.prompt }}" > completion.txt
 
   - id: check-output
     type: io.kestra.plugin.core.execution.Assert
