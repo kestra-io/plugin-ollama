@@ -7,7 +7,7 @@ inputs:
     defaults: Tell me a joke about AI
 
 tasks:
-  - id: ask_ai
+  - id: ollama_cli_task
     type: io.kestra.plugin.ollama.cli.OllamaCLI
     enableModelCaching: true
     modelCachePath: /Users/kestra/.ollama
@@ -19,4 +19,4 @@ tasks:
   - id: check-output
     type: io.kestra.plugin.core.execution.Assert
     conditions:
-      - "{{ outputs.ask_ai.exitCode == 0 }}"
+      - "{{ outputs.ollama_cli_task.exitCode == 0 }}"
