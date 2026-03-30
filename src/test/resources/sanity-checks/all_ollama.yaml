@@ -10,13 +10,17 @@ tasks:
   - id: ollama_cli_task
     type: io.kestra.plugin.ollama.cli.OllamaCLI
     enableModelCaching: true
-    modelCachePath: /Users/kestra/.ollama
     outputFiles:
-      - completion.txt
+      - models.json
+      - model.txt
     commands:
-      - ollama run smollm:135m "{{ inputs.prompt }}" > completion.txt
+      - ollama pull smollm:135m
+      - ollama list --json > models.json
+      - ollama show smollm:135m > model.txt
 
   - id: check-output
     type: io.kestra.plugin.core.execution.Assert
     conditions:
       - "{{ outputs.ollama_cli_task.exitCode == 0 }}"
+      - "{{ outputs.ollama_cli_task.outputFiles['models.json'] is not null }}"
+      - "{{ outputs.ollama_cli_task.outputFiles['model.txt'] is not null }}"

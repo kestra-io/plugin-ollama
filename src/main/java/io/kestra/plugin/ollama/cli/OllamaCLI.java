@@ -217,7 +217,7 @@ public class OllamaCLI extends Task implements RunnableTask<ScriptOutput>, Names
             .withInterpreter(Property.ofValue(List.of("/bin/sh", "-c")))
             .withBeforeCommands(
                 host == null
-                    ? Property.ofValue(List.of("ollama serve & sleep 5"))
+                    ? Property.ofValue(List.of("ollama serve >/tmp/ollama-serve.log 2>&1 & ready=false; for i in $(seq 1 30); do if ollama list >/dev/null 2>&1; then ready=true; break; fi; sleep 1; done; $ready || { echo 'Ollama daemon did not become ready in time' >&2; exit 1; }"))
                     : null
             )
             .withCommands(Property.ofValue(originalCommands))
