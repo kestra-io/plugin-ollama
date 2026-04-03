@@ -10,7 +10,7 @@ tasks:
   - id: ollama_cli_task
     type: io.kestra.plugin.ollama.cli.OllamaCLI
     enableModelCaching: true
-    modelCachePath: /Users/kestra/.ollama
+    modelCachePath: /tmp/.ollama
     outputFiles:
       - completion.txt
     commands:

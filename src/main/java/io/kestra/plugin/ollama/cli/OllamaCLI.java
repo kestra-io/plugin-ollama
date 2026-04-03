@@ -97,7 +97,7 @@ import java.util.stream.Stream;
                       - id: ask_ai
                         type: io.kestra.plugin.ollama.cli.OllamaCLI
                         enableModelCaching: true
-                        modelCachePath: /Users/kestra/.ollama
+                        modelCachePath: /tmp/.ollama
                         outputFiles:
                           - completion.txt
                         commands:
