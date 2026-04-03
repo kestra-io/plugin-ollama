@@ -1,5 +1,5 @@
 id: all_ollama
-namespace: sanitychecks.plugins.plugin-ollama
+namespace: sanitychecks.plugin-ollama
 
 inputs:
   - id: prompt
