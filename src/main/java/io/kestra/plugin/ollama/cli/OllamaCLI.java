@@ -132,19 +132,21 @@ public class OllamaCLI extends Task implements RunnableTask<ScriptOutput>, Names
         description = "Rendered then executed with `/bin/sh -c` in order. Include any `sync` calls before cleanup commands if output files need to be persisted."
     )
     @NotNull
+    @PluginProperty(group = "main")
     protected Property<List<String>> commands;
 
     @Schema(
         title = "Additional environment variables",
         description = "Optional key/value pairs merged into the process environment. When `host` is set, `OLLAMA_HOST` is injected automatically."
     )
+    @PluginProperty(group = "execution")
     protected Property<Map<String, String>> env;
 
     @Schema(
         title = "Task runner used for execution",
         description = "Defaults to the Docker runner. Configure plugin-specific runner options (mounts, resources) as needed."
     )
-    @PluginProperty
+    @PluginProperty(group = "execution")
     @Builder.Default
     @Valid
     private TaskRunner<?> taskRunner = Docker.instance();
@@ -154,12 +156,16 @@ public class OllamaCLI extends Task implements RunnableTask<ScriptOutput>, Names
         description = "Image used when running inside Docker. Defaults to `ollama/ollama`."
     )
     @Builder.Default
+    @PluginProperty(group = "execution")
     private Property<String> containerImage = Property.ofValue(DEFAULT_IMAGE);
 
+    @PluginProperty(group = "source")
     private NamespaceFiles namespaceFiles;
 
+    @PluginProperty(group = "source")
     private Object inputFiles;
 
+    @PluginProperty(group = "destination")
     private Property<List<String>> outputFiles;
 
     @Schema(
@@ -167,18 +173,21 @@ public class OllamaCLI extends Task implements RunnableTask<ScriptOutput>, Names
         description = "Defaults to true. When enabled with the Docker runner and no remote host, mounts the Ollama models directory so pulled models are reused. Disable to avoid reusing cached models."
     )
     @Builder.Default
+    @PluginProperty(group = "advanced")
     private Property<Boolean> enableModelCaching = Property.ofValue(true);
 
     @Schema(
         title = "Host path for cached models",
         description = "Optional host path to mount for the Ollama cache when caching is enabled. If unset, uses named Docker volume `kestra-ollama-cache`."
     )
+    @PluginProperty(group = "advanced")
     private Property<String> modelCachePath;
 
     @Schema(
         title = "Remote Ollama host",
         description = "Connects to an existing Ollama server and skips starting a local `ollama serve`. Sets `OLLAMA_HOST` for commands; ensure the address is reachable from the runner."
     )
+    @PluginProperty(group = "connection")
     private Property<String> host;
 
     @Schema(
