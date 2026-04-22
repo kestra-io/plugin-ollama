@@ -300,6 +300,7 @@ public class OllamaCLI extends Task implements RunnableTask<ScriptOutput>, Names
             title = "API Key",
             description = "API key used to access Ollama cloud models."
         )
+        @PluginProperty(secret = true)
         private Property<String> apiKey;
     }
 }
