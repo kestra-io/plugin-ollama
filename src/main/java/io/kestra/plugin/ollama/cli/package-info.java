@@ -1,5 +1,5 @@
 @PluginSubGroup(
-    title = "CLI",
+    title = "Ollama CLI",
     description = "This sub-group of plugins contains tasks for interacting with the Ollama CLI.", categories = {
         PluginSubGroup.PluginCategory.AI
     }
