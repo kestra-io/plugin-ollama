@@ -4,7 +4,8 @@ namespace: sanitychecks.plugin-ollama
 inputs:
   - id: prompt
     type: STRING
-    defaults: Tell me a joke about AI
+    # Keep the prompt minimal so CPU inference on CI runners stays fast and bounded.
+    defaults: Reply with a single word.
 
 tasks:
   - id: ollama_cli_task

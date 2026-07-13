@@ -197,7 +197,7 @@ public class OllamaCLI extends Task implements RunnableTask<ScriptOutput>, Names
             If no `host` is specified, it defaults to https://ollama.com.
             """
     )
-    @PluginProperty(dynamic = true)
+    @PluginProperty(dynamic = true, group = "connection")
     private Auth auth;
 
     @Override
