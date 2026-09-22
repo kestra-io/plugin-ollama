@@ -89,7 +89,7 @@ dependencies {
     testImplementation "org.hamcrest:hamcrest"
     testImplementation "org.hamcrest:hamcrest-library"
 
-    testImplementation 'org.testcontainers:ollama:1.21.4'
+    testImplementation 'org.testcontainers:testcontainers-ollama:2.0.5'
 }
 
 /**********************************************************************************************************************\
