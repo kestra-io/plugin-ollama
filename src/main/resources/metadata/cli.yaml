@@ -2,7 +2,7 @@ group: io.kestra.plugin.ollama.cli
 name: "cli"
 title: "Ollama CLI"
 description: "Tasks that execute Ollama CLI commands for model management and generation."
-body: "Define the shell `commands` to run (pull, list, run), optionally set a remote `host`, container image, model caching path, and per-task Docker `volumeEnabled` on the Ollama runner, and capture output files so model runs and assets integrate cleanly with workflows."
+body: "Define shell `commands`, optionally set remote `host`, caching, and per-task Docker `volumeEnabled` on `OllamaDocker` (not on stock `Docker`). Capture output files for orchestrated model runs."
 videos: []
 createdBy: "Kestra Core Team"
 managedBy: "Kestra Core Team"

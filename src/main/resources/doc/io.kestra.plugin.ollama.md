@@ -12,4 +12,14 @@ No API key is needed for a local Ollama server. To use Ollama Cloud models, set 
 
 Model caching is enabled by default (`enableModelCaching: true`): pulled models are stored in a Docker volume named `kestra-ollama-cache` and reused across executions, so you only pay the pull cost once. Set `modelCachePath` to use a specific host directory instead of the named volume.
 
-Docker volume mounts are disabled globally by default. For Ollama model caching without changing server configuration, use the default `OllamaDocker` task runner (set automatically) or set `volumeEnabled: true` on `io.kestra.plugin.ollama.cli.OllamaDocker` under `taskRunner`. You can also set `volumeEnabled` on the `OllamaCLI` task itself to override the server `volume-enabled` plugin configuration for that task only.
+## Per-task Docker volume mounts
+
+Docker volume mounts are disabled globally by default. Enabling them only in server configuration (`plugins.configurations` for `io.kestra.plugin.scripts.runner.docker.Docker` with `volume-enabled: true`) affects every Docker-backed task.
+
+**The stock `io.kestra.plugin.scripts.runner.docker.Docker` task runner does not define a task-level `volume-enabled` (or `volumeEnabled`) property.** A flow YAML that sets `taskRunner.type: io.kestra.plugin.scripts.runner.docker.Docker` with `volume-enabled: true` will not enable mounts.
+
+For Ollama model caching without global configuration, use one of these approaches:
+
+- Rely on the default task runner (`io.kestra.plugin.ollama.cli.OllamaDocker`), which `OllamaCLI` selects automatically and which enables volumes when model caching is on.
+- Set `volumeEnabled: true` on `io.kestra.plugin.ollama.cli.OllamaDocker` under `taskRunner`.
+- Set `volumeEnabled` on the `OllamaCLI` task to override the server `volume-enabled` plugin configuration for that execution only.

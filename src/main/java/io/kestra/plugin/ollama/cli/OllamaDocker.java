@@ -29,9 +29,11 @@ import lombok.experimental.SuperBuilder;
 @Schema(
     title = "Docker task runner with per-task volume mounting for Ollama",
     description = """
-        Same as the standard Docker task runner, with an optional `volumeEnabled` property on the task runner
-        so volume mounts work without changing global Kestra plugin configuration.
-        When set, it overrides the server `volume-enabled` plugin configuration for this task only.
+        Same as the standard Docker task runner, with optional `volumeEnabled` on the task runner.
+        Use this type instead of `io.kestra.plugin.scripts.runner.docker.Docker` when a flow needs volume mounts
+        (for example Ollama model caching) without enabling `volume-enabled` globally in Kestra plugin configuration.
+        The stock Docker runner class does not accept `volume-enabled` as a task property.
+        When `volumeEnabled` is set here, it overrides the server `volume-enabled` plugin configuration for this task only.
         When unset, the server plugin configuration applies.
         """
 )

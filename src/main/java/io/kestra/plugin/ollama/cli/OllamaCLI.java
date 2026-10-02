@@ -98,7 +98,7 @@ import lombok.experimental.SuperBuilder;
         ),
         @Example(
             full = true,
-            title = "Enable Docker volumes on the task runner without global plugin config",
+            title = "Enable model cache volumes with OllamaDocker (not stock Docker)",
             code = """
                 id: ollama_plugin
                 namespace: company.team
@@ -144,6 +144,8 @@ public class OllamaCLI extends Task implements RunnableTask<ScriptOutput>, Names
     private static final String OLLAMA_CONTAINER_MODELS_PATH = "/root/.ollama";
     private static final String OLLAMA_CLOUD_HOST = "https://ollama.com";
 
+    private transient TaskRunner<?> lastConfiguredTaskRunner;
+
     @Schema(
         title = "Commands executed by Ollama CLI",
         description = "Rendered then executed with `/bin/sh -c` in order. Include any `sync` calls before cleanup commands if output files need to be persisted."
@@ -161,7 +163,10 @@ public class OllamaCLI extends Task implements RunnableTask<ScriptOutput>, Names
 
     @Schema(
         title = "Task runner used for execution",
-        description = "Defaults to the Docker runner. Configure plugin-specific runner options (mounts, resources) as needed."
+        description = """
+            Defaults to `io.kestra.plugin.ollama.cli.OllamaDocker`.
+            The stock `io.kestra.plugin.scripts.runner.docker.Docker` runner does not expose a task-level `volume-enabled` property — use `OllamaDocker` (with `volumeEnabled`) or set `volumeEnabled` on this task instead.
+            """
     )
     @PluginProperty(group = "execution")
     @Builder.Default
@@ -235,6 +240,7 @@ public class OllamaCLI extends Task implements RunnableTask<ScriptOutput>, Names
         Map<String, String> envs = getEnv(runContext);
 
         TaskRunner<?> configuredTaskRunner = configureTaskRunner(runContext);
+        this.lastConfiguredTaskRunner = configuredTaskRunner;
 
         var originalCommands = runContext.render(this.commands).asList(String.class);
 
@@ -281,10 +287,9 @@ public class OllamaCLI extends Task implements RunnableTask<ScriptOutput>, Names
         if (runContext.render(this.enableModelCaching).as(Boolean.class).orElse(true)) {
             String volumeSpec;
             if (this.modelCachePath != null) {
-                String hostPath = runContext.render(this.modelCachePath).as(String.class).orElseThrow();
-                if (hostPath.isBlank()) {
-                    throw new IllegalArgumentException("modelCachePath must not be blank");
-                }
+                String hostPath = runContext.render(this.modelCachePath).as(String.class)
+                    .filter(path -> !path.isBlank())
+                    .orElseThrow(() -> new IllegalArgumentException("modelCachePath must not be blank"));
                 volumeSpec = hostPath + ":" + OLLAMA_CONTAINER_MODELS_PATH;
                 runContext.logger().info("Using user host path for Ollama cache: {}", volumeSpec);
             } else {
@@ -333,6 +338,10 @@ public class OllamaCLI extends Task implements RunnableTask<ScriptOutput>, Names
         }
 
         return envs;
+    }
+
+    TaskRunner<?> lastConfiguredTaskRunner() {
+        return lastConfiguredTaskRunner;
     }
 
     @Builder

@@ -2,6 +2,7 @@ package io.kestra.plugin.ollama.cli;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 import org.junit.jupiter.api.Test;
 
@@ -16,7 +17,6 @@ import jakarta.inject.Inject;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.notNullValue;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 @KestraTest
@@ -25,7 +25,7 @@ class OllamaCLITaskRunnerTest {
     private RunContextFactory runContextFactory;
 
     @Test
-    void shouldEnableVolumesOnRunnerWhenModelCachingIsEnabled() throws Exception {
+    void shouldApplyCacheVolumesWhenRunWithModelCaching() throws Exception {
         OllamaCLI task = OllamaCLI.builder()
             .id("ollama")
             .type(OllamaCLI.class.getName())
@@ -34,17 +34,15 @@ class OllamaCLITaskRunnerTest {
             .build();
 
         RunContext runContext = TestsUtils.mockRunContext(runContextFactory, task, Map.of());
-        OllamaDocker runner = (OllamaDocker) task.configureTaskRunner(runContext);
+        assertThrows(Exception.class, () -> task.run(runContext));
 
-        assertThat(runContext.render(runner.getVolumeEnabled()).as(Boolean.class).orElseThrow(), is(true));
-        assertThat(
-            runner.getVolumes(),
-            contains("kestra-ollama-cache:/root/.ollama")
-        );
+        OllamaDocker runner = (OllamaDocker) task.lastConfiguredTaskRunner();
+        assertThat(runContext.render(runner.getVolumeEnabled()).as(Boolean.class).orElse(null), is(true));
+        assertThat(runner.getVolumes(), contains("kestra-ollama-cache:/root/.ollama"));
     }
 
     @Test
-    void shouldPreferTaskVolumeEnabledOverModelCachingDefault() throws Exception {
+    void shouldPreferTaskVolumeEnabledWhenRun() throws Exception {
         OllamaCLI task = OllamaCLI.builder()
             .id("ollama")
             .type(OllamaCLI.class.getName())
@@ -54,13 +52,14 @@ class OllamaCLITaskRunnerTest {
             .build();
 
         RunContext runContext = TestsUtils.mockRunContext(runContextFactory, task, Map.of());
-        OllamaDocker runner = (OllamaDocker) task.configureTaskRunner(runContext);
+        assertThrows(Exception.class, () -> task.run(runContext));
 
-        assertThat(runContext.render(runner.getVolumeEnabled()).as(Boolean.class).orElseThrow(), is(false));
+        OllamaDocker runner = (OllamaDocker) task.lastConfiguredTaskRunner();
+        assertThat(runContext.render(runner.getVolumeEnabled()).as(Boolean.class).orElse(null), is(false));
     }
 
     @Test
-    void shouldKeepTaskRunnerVolumeEnabledWhenSetOnOllamaDocker() throws Exception {
+    void shouldKeepTaskRunnerVolumeEnabledWhenRun() throws Exception {
         OllamaCLI task = OllamaCLI.builder()
             .id("ollama")
             .type(OllamaCLI.class.getName())
@@ -75,13 +74,14 @@ class OllamaCLITaskRunnerTest {
             .build();
 
         RunContext runContext = TestsUtils.mockRunContext(runContextFactory, task, Map.of());
-        OllamaDocker runner = (OllamaDocker) task.configureTaskRunner(runContext);
+        assertThrows(Exception.class, () -> task.run(runContext));
 
-        assertThat(runContext.render(runner.getVolumeEnabled()).as(Boolean.class).orElseThrow(), is(true));
+        OllamaDocker runner = (OllamaDocker) task.lastConfiguredTaskRunner();
+        assertThat(runContext.render(runner.getVolumeEnabled()).as(Boolean.class).orElse(null), is(true));
     }
 
     @Test
-    void shouldRejectBlankModelCachePath() {
+    void shouldRejectBlankModelCachePathOnRun() {
         OllamaCLI task = OllamaCLI.builder()
             .id("ollama")
             .type(OllamaCLI.class.getName())
@@ -91,27 +91,26 @@ class OllamaCLITaskRunnerTest {
 
         RunContext runContext = TestsUtils.mockRunContext(runContextFactory, task, Map.of());
 
-        IllegalArgumentException error = assertThrows(IllegalArgumentException.class, () -> task.configureTaskRunner(runContext));
+        IllegalArgumentException error = assertThrows(IllegalArgumentException.class, () -> task.run(runContext));
         assertThat(error.getMessage(), is("modelCachePath must not be blank"));
     }
 
     @Test
-    void shouldMergeVolumeEnabledIntoRunnerPluginConfiguration() throws Exception {
+    void shouldNotMutateParentPluginConfigurationOnRun() {
         OllamaCLI task = OllamaCLI.builder()
             .id("ollama")
             .type(OllamaCLI.class.getName())
             .commands(Property.ofValue(List.of("ollama list")))
+            .enableModelCaching(Property.ofValue(true))
             .build();
 
-        RunContext runContext = TestsUtils.mockRunContext(runContextFactory, task, Map.of());
-        OllamaDocker runner = OllamaDocker.builder()
-            .type(OllamaDocker.class.getName())
-            .volumeEnabled(Property.ofValue(true))
-            .build();
+        RunContext parent = TestsUtils.mockRunContext(runContextFactory, task, Map.of());
+        Optional<Boolean> volumeEnabledBefore = parent.pluginConfiguration("volume-enabled");
+        int configurationMapIdentity = System.identityHashCode(parent.pluginConfigurations());
 
-        RunContext runnerContext = runner.withVolumeEnabled(runContext.cloneForPlugin(runner));
+        assertThrows(Exception.class, () -> task.run(parent));
 
-        assertThat(runnerContext.pluginConfiguration("volume-enabled").orElseThrow(), is(true));
-        assertThat(runnerContext, notNullValue());
+        assertThat(System.identityHashCode(parent.pluginConfigurations()), is(configurationMapIdentity));
+        assertThat(parent.pluginConfiguration("volume-enabled"), is(volumeEnabledBefore));
     }
 }
