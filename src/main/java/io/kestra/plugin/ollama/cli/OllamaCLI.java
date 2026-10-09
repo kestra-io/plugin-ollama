@@ -31,7 +31,7 @@ import lombok.experimental.SuperBuilder;
 @NoArgsConstructor
 @Schema(
     title = "Run Ollama CLI commands in flows",
-    description = "Executes rendered Ollama CLI commands inside the configured task runner. Starts a transient `ollama serve` when no remote host is provided and defaults to Docker-based model caching so pulls persist across runs."
+    description = "Executes rendered Ollama CLI commands inside the configured task runner. Starts a transient `ollama serve` when no remote host is provided and can mount a Docker volume for model caching when the server allows Docker volume mounts."
 )
 @Plugin(
     examples = {
@@ -98,31 +98,6 @@ import lombok.experimental.SuperBuilder;
         ),
         @Example(
             full = true,
-            title = "Enable model cache volumes with OllamaDocker (not stock Docker)",
-            code = """
-                id: ollama_plugin
-                namespace: company.team
-
-                inputs:
-                  - id: prompt
-                    type: STRING
-                    defaults: Tell me a joke about AI
-
-                tasks:
-                  - id: hello
-                    type: io.kestra.plugin.ollama.cli.OllamaCLI
-                    taskRunner:
-                      type: io.kestra.plugin.ollama.cli.OllamaDocker
-                      volumeEnabled: true
-                    enableModelCaching: true
-                    commands:
-                      - ollama run gemma3:1b "{{ inputs.prompt }}" > completion.txt
-                    outputFiles:
-                      - completion.txt
-                """
-        ),
-        @Example(
-            full = true,
             title = "List models from a remote Ollama server",
             code = """
                     id: ollama_plugin
@@ -143,8 +118,7 @@ public class OllamaCLI extends Task implements RunnableTask<ScriptOutput>, Names
     private static final String DEFAULT_IMAGE = "ollama/ollama";
     private static final String OLLAMA_CONTAINER_MODELS_PATH = "/root/.ollama";
     private static final String OLLAMA_CLOUD_HOST = "https://ollama.com";
-
-    private transient TaskRunner<?> lastConfiguredTaskRunner;
+    static final String VOLUME_ENABLED_CONFIG = "volume-enabled";
 
     @Schema(
         title = "Commands executed by Ollama CLI",
@@ -165,7 +139,7 @@ public class OllamaCLI extends Task implements RunnableTask<ScriptOutput>, Names
         title = "Task runner used for execution",
         description = """
             Defaults to `io.kestra.plugin.ollama.cli.OllamaDocker`.
-            The stock `io.kestra.plugin.scripts.runner.docker.Docker` runner does not expose a task-level `volume-enabled` property — use `OllamaDocker` (with `volumeEnabled`) or set `volumeEnabled` on this task instead.
+            The stock `io.kestra.plugin.scripts.runner.docker.Docker` runner has no task-level `volume-enabled` property; enable Docker volume mounts in Kestra plugin configuration instead.
             """
     )
     @PluginProperty(group = "execution")
@@ -192,7 +166,10 @@ public class OllamaCLI extends Task implements RunnableTask<ScriptOutput>, Names
 
     @Schema(
         title = "Persist Ollama model cache",
-        description = "Defaults to true. When enabled with the Docker runner and no remote host, mounts the Ollama models directory so pulled models are reused. Disable to avoid reusing cached models."
+        description = """
+            Defaults to true for local runs (no `host`). When enabled, adds a Docker volume mount for the Ollama models directory only if the server already allows Docker volume mounts (`volume-enabled` in plugin configuration).
+            Cannot be combined with `host` or `modelCachePath` when connecting to a remote server.
+            """
     )
     @Builder.Default
     @PluginProperty(group = "advanced")
@@ -200,21 +177,13 @@ public class OllamaCLI extends Task implements RunnableTask<ScriptOutput>, Names
 
     @Schema(
         title = "Host path for cached models",
-        description = "Optional host path to mount for the Ollama cache when caching is enabled. If unset, uses named Docker volume `kestra-ollama-cache`."
+        description = """
+            Optional host path to mount for the Ollama cache when caching is enabled and Docker volume mounts are allowed server-side.
+            If unset, uses named Docker volume `kestra-ollama-cache`. Cannot be used when `host` is set.
+            """
     )
     @PluginProperty(group = "advanced")
     private Property<String> modelCachePath;
-
-    @Schema(
-        title = "Enable Docker volume mounts for this task",
-        description = """
-            When set, overrides the server `volume-enabled` Docker plugin configuration for this task only.
-            When unset, model caching automatically enables volume mounts for the task runner; otherwise the server plugin configuration applies.
-            Prefer `taskRunner.volumeEnabled` on `io.kestra.plugin.ollama.cli.OllamaDocker` when customizing the runner directly.
-            """
-    )
-    @PluginProperty(group = "execution")
-    private Property<Boolean> volumeEnabled;
 
     @Schema(
         title = "Remote Ollama host",
@@ -240,7 +209,6 @@ public class OllamaCLI extends Task implements RunnableTask<ScriptOutput>, Names
         Map<String, String> envs = getEnv(runContext);
 
         TaskRunner<?> configuredTaskRunner = configureTaskRunner(runContext);
-        this.lastConfiguredTaskRunner = configuredTaskRunner;
 
         var originalCommands = runContext.render(this.commands).asList(String.class);
 
@@ -274,6 +242,12 @@ public class OllamaCLI extends Task implements RunnableTask<ScriptOutput>, Names
 
     protected TaskRunner<?> configureTaskRunner(RunContext runContext) throws Exception {
         if (this.host != null) {
+            if (this.modelCachePath != null) {
+                throw new IllegalArgumentException("modelCachePath cannot be used when host is set");
+            }
+            if (runContext.render(this.enableModelCaching).as(Boolean.class).orElse(true)) {
+                throw new IllegalArgumentException("enableModelCaching cannot be used when host is set");
+            }
             return this.taskRunner;
         }
 
@@ -281,42 +255,43 @@ public class OllamaCLI extends Task implements RunnableTask<ScriptOutput>, Names
             return this.taskRunner;
         }
 
-        OllamaDocker.OllamaDockerBuilder<?, ?> builder = OllamaDocker.builderFrom(dockerRunner);
-        applyVolumeEnabled(runContext, builder);
-
-        if (runContext.render(this.enableModelCaching).as(Boolean.class).orElse(true)) {
-            String volumeSpec;
-            if (this.modelCachePath != null) {
-                String hostPath = runContext.render(this.modelCachePath).as(String.class)
-                    .filter(path -> !path.isBlank())
-                    .orElseThrow(() -> new IllegalArgumentException("modelCachePath must not be blank"));
-                volumeSpec = hostPath + ":" + OLLAMA_CONTAINER_MODELS_PATH;
-                runContext.logger().info("Using user host path for Ollama cache: {}", volumeSpec);
-            } else {
-                String volumeName = "kestra-ollama-cache";
-                volumeSpec = volumeName + ":" + OLLAMA_CONTAINER_MODELS_PATH;
-                runContext.logger().info("Using named Docker volume for Ollama cache: {}", volumeSpec);
-            }
-
-            List<String> existingVolumes = dockerRunner.getVolumes() != null ? new ArrayList<>(dockerRunner.getVolumes()) : new ArrayList<>();
-            existingVolumes.add(volumeSpec);
-            builder.volumes(existingVolumes);
+        var cachingEnabled = runContext.render(this.enableModelCaching).as(Boolean.class).orElse(true);
+        if (!cachingEnabled) {
+            return dockerRunner;
         }
 
-        return builder.build();
+        if (!dockerVolumesAllowed(runContext)) {
+            runContext.logger().warn(
+                "Model caching is enabled but Docker volume mounts are disabled in plugin configuration ({}). "
+                    + "Pulled models will not persist between runs.",
+                VOLUME_ENABLED_CONFIG
+            );
+            return dockerRunner;
+        }
+
+        var volumeSpec = resolveModelCacheVolume(runContext);
+        var existingVolumes = dockerRunner.getVolumes() != null ? new ArrayList<>(dockerRunner.getVolumes()) : new ArrayList<String>();
+        existingVolumes.add(volumeSpec);
+        return dockerRunner.toBuilder().volumes(existingVolumes).build();
     }
 
-    private void applyVolumeEnabled(RunContext runContext, OllamaDocker.OllamaDockerBuilder<?, ?> builder) throws Exception {
-        if (this.volumeEnabled != null) {
-            builder.volumeEnabled(this.volumeEnabled);
-            return;
+    static boolean dockerVolumesAllowed(RunContext runContext) {
+        return runContext.<Boolean> pluginConfiguration(VOLUME_ENABLED_CONFIG).orElse(false);
+    }
+
+    private String resolveModelCacheVolume(RunContext runContext) throws IllegalVariableEvaluationException {
+        if (this.modelCachePath != null) {
+            var hostPath = runContext.render(this.modelCachePath).as(String.class)
+                .filter(path -> !path.isBlank())
+                .orElseThrow(() -> new IllegalArgumentException("modelCachePath must not be blank"));
+            var volumeSpec = hostPath + ":" + OLLAMA_CONTAINER_MODELS_PATH;
+            runContext.logger().info("Using user host path for Ollama cache: {}", volumeSpec);
+            return volumeSpec;
         }
-        if (this.taskRunner instanceof OllamaDocker ollamaDocker && ollamaDocker.getVolumeEnabled() != null) {
-            return;
-        }
-        if (runContext.render(this.enableModelCaching).as(Boolean.class).orElse(true)) {
-            builder.volumeEnabled(Property.ofValue(true));
-        }
+        var volumeName = "kestra-ollama-cache";
+        var volumeSpec = volumeName + ":" + OLLAMA_CONTAINER_MODELS_PATH;
+        runContext.logger().info("Using named Docker volume for Ollama cache: {}", volumeSpec);
+        return volumeSpec;
     }
 
     public Map<String, String> getEnv(RunContext runContext) throws IllegalVariableEvaluationException {
@@ -338,10 +313,6 @@ public class OllamaCLI extends Task implements RunnableTask<ScriptOutput>, Names
         }
 
         return envs;
-    }
-
-    TaskRunner<?> lastConfiguredTaskRunner() {
-        return lastConfiguredTaskRunner;
     }
 
     @Builder
