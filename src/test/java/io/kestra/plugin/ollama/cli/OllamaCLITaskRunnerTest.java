@@ -73,6 +73,21 @@ class OllamaCLITaskRunnerTest {
     }
 
     @Test
+    void shouldAllowHostOnlyWhenEnableModelCachingIsUnset() throws Exception {
+        OllamaCLI task = OllamaCLI.builder()
+            .id("ollama")
+            .type(OllamaCLI.class.getName())
+            .commands(Property.ofValue(List.of("ollama list")))
+            .host(Property.ofValue("http://remote:11434"))
+            .build();
+
+        RunContext runContext = TestsUtils.mockRunContext(runContextFactory, task, Map.of());
+        var runner = task.configureTaskRunner(runContext);
+
+        assertThat(runner, is(task.getTaskRunner()));
+    }
+
+    @Test
     void shouldRejectEnableModelCachingWhenHostIsSet() throws Exception {
         OllamaCLI task = OllamaCLI.builder()
             .id("ollama")
@@ -85,7 +100,7 @@ class OllamaCLITaskRunnerTest {
         RunContext runContext = TestsUtils.mockRunContext(runContextFactory, task, Map.of());
 
         var error = assertThrows(IllegalArgumentException.class, () -> task.configureTaskRunner(runContext));
-        assertThat(error.getMessage(), is("enableModelCaching cannot be used when host is set"));
+        assertThat(error.getMessage(), is("enableModelCaching cannot be used together with host"));
     }
 
     @Test

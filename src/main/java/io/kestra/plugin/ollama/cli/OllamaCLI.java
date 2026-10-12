@@ -167,13 +167,12 @@ public class OllamaCLI extends Task implements RunnableTask<ScriptOutput>, Names
     @Schema(
         title = "Persist Ollama model cache",
         description = """
-            Defaults to true for local runs (no `host`). When enabled, adds a Docker volume mount for the Ollama models directory only if the server already allows Docker volume mounts (`volume-enabled` in plugin configuration).
-            Cannot be combined with `host` or `modelCachePath` when connecting to a remote server.
+            Defaults to true for local runs when unset. When enabled, adds a Docker volume mount for the Ollama models directory only if the server already allows Docker volume mounts (`volume-enabled` in plugin configuration).
+            When `host` is set, leave this property unset unless you intend to disable caching explicitly; setting `enableModelCaching` to true together with `host` is not supported.
             """
     )
-    @Builder.Default
     @PluginProperty(group = "advanced")
-    private Property<Boolean> enableModelCaching = Property.ofValue(true);
+    private Property<Boolean> enableModelCaching;
 
     @Schema(
         title = "Host path for cached models",
@@ -245,8 +244,11 @@ public class OllamaCLI extends Task implements RunnableTask<ScriptOutput>, Names
             if (this.modelCachePath != null) {
                 throw new IllegalArgumentException("modelCachePath cannot be used when host is set");
             }
-            if (runContext.render(this.enableModelCaching).as(Boolean.class).orElse(true)) {
-                throw new IllegalArgumentException("enableModelCaching cannot be used when host is set");
+            if (
+                this.enableModelCaching != null
+                    && runContext.render(this.enableModelCaching).as(Boolean.class).orElse(false)
+            ) {
+                throw new IllegalArgumentException("enableModelCaching cannot be used together with host");
             }
             return this.taskRunner;
         }
