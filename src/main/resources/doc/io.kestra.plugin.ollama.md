@@ -27,6 +27,8 @@ kestra:
 
 **The stock `io.kestra.plugin.scripts.runner.docker.Docker` task runner does not define a task-level `volume-enabled` (or `volumeEnabled`) property.** A flow that sets `taskRunner.type: io.kestra.plugin.scripts.runner.docker.Docker` with `volume-enabled: true` will not enable mounts.
 
+`modelCachePath` is a free-form host path. It is only honored when an administrator has enabled `volume-enabled` for the runner, so restrict that setting accordingly.
+
 `OllamaCLI` does not override an administrator `volume-enabled: false` policy. Model cache mounts are added only when volume mounts are already allowed server-side. Use `io.kestra.plugin.ollama.cli.OllamaDocker` as the task runner type (the default) so plugin configuration applies to Ollama runs.
 
-Remote `host` connections do not use local model caching; set `enableModelCaching: false` when using `host` (this is enforced if caching is left enabled).
+Remote `host` connections do not use local model caching; `enableModelCaching` and `modelCachePath` are ignored (a warning is logged) when `host` is set.

@@ -168,7 +168,7 @@ public class OllamaCLI extends Task implements RunnableTask<ScriptOutput>, Names
         title = "Persist Ollama model cache",
         description = """
             Defaults to true for local runs when unset. When enabled, adds a Docker volume mount for the Ollama models directory only if the server already allows Docker volume mounts (`volume-enabled` in plugin configuration).
-            When `host` is set, leave this property unset unless you intend to disable caching explicitly; setting `enableModelCaching` to true together with `host` is not supported.
+            Ignored when `host` is set.
             """
     )
     @PluginProperty(group = "advanced")
@@ -178,7 +178,7 @@ public class OllamaCLI extends Task implements RunnableTask<ScriptOutput>, Names
         title = "Host path for cached models",
         description = """
             Optional host path to mount for the Ollama cache when caching is enabled and Docker volume mounts are allowed server-side.
-            If unset, uses named Docker volume `kestra-ollama-cache`. Cannot be used when `host` is set.
+            If unset, uses named Docker volume `kestra-ollama-cache`. Ignored when `host` is set.
             """
     )
     @PluginProperty(group = "advanced")
@@ -241,14 +241,8 @@ public class OllamaCLI extends Task implements RunnableTask<ScriptOutput>, Names
 
     protected TaskRunner<?> configureTaskRunner(RunContext runContext) throws Exception {
         if (this.host != null) {
-            if (this.modelCachePath != null) {
-                throw new IllegalArgumentException("modelCachePath cannot be used when host is set");
-            }
-            if (
-                this.enableModelCaching != null
-                    && runContext.render(this.enableModelCaching).as(Boolean.class).orElse(false)
-            ) {
-                throw new IllegalArgumentException("enableModelCaching cannot be used together with host");
+            if (this.modelCachePath != null || runContext.render(this.enableModelCaching).as(Boolean.class).orElse(false)) {
+                runContext.logger().warn("Model caching options are ignored when `host` is set.");
             }
             return this.taskRunner;
         }
@@ -262,7 +256,7 @@ public class OllamaCLI extends Task implements RunnableTask<ScriptOutput>, Names
             return dockerRunner;
         }
 
-        if (!dockerVolumesAllowed(runContext)) {
+        if (!dockerVolumesAllowed(runContext, dockerRunner)) {
             runContext.logger().warn(
                 "Model caching is enabled but Docker volume mounts are disabled in plugin configuration ({}). "
                     + "Pulled models will not persist between runs.",
@@ -277,8 +271,9 @@ public class OllamaCLI extends Task implements RunnableTask<ScriptOutput>, Names
         return dockerRunner.toBuilder().volumes(existingVolumes).build();
     }
 
-    static boolean dockerVolumesAllowed(RunContext runContext) {
-        return runContext.<Boolean> pluginConfiguration(VOLUME_ENABLED_CONFIG).orElse(false);
+    static boolean dockerVolumesAllowed(RunContext runContext, Docker dockerRunner) {
+        // the runner reads `volume-enabled` from its own plugin configuration, so gate on the same one
+        return runContext.cloneForPlugin(dockerRunner).<Boolean> pluginConfiguration(VOLUME_ENABLED_CONFIG).orElse(false);
     }
 
     private String resolveModelCacheVolume(RunContext runContext) throws IllegalVariableEvaluationException {

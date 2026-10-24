@@ -1,6 +1,5 @@
 package io.kestra.plugin.ollama.cli;
 
-import java.lang.reflect.Method;
 import java.util.List;
 import java.util.Map;
 
@@ -8,7 +7,6 @@ import org.junit.jupiter.api.Test;
 
 import io.kestra.core.junit.annotations.KestraTest;
 import io.kestra.core.models.property.Property;
-import io.kestra.core.runners.DefaultRunContext;
 import io.kestra.core.runners.RunContext;
 import io.kestra.core.runners.RunContextFactory;
 import io.kestra.core.utils.TestsUtils;
@@ -36,7 +34,7 @@ class OllamaCLITaskRunnerTest {
             .enableModelCaching(Property.ofValue(true))
             .build();
 
-        RunContext runContext = runContextWithVolumeEnabled(TestsUtils.mockRunContext(runContextFactory, task, Map.of()), true);
+        RunContext runContext = TestsUtils.mockRunContext(runContextFactory, task, Map.of());
         var runner = (Docker) task.configureTaskRunner(runContext);
 
         assertThat(runner.getVolumes(), contains("kestra-ollama-cache:/root/.ollama"));
@@ -48,10 +46,11 @@ class OllamaCLITaskRunnerTest {
             .id("ollama")
             .type(OllamaCLI.class.getName())
             .commands(Property.ofValue(List.of("ollama list")))
+            .taskRunner(Docker.instance())
             .enableModelCaching(Property.ofValue(true))
             .build();
 
-        RunContext runContext = runContextWithVolumeEnabled(TestsUtils.mockRunContext(runContextFactory, task, Map.of()), false);
+        RunContext runContext = TestsUtils.mockRunContext(runContextFactory, task, Map.of());
         var runner = (Docker) task.configureTaskRunner(runContext);
 
         assertThat(runner.getVolumes(), nullValue());
@@ -66,7 +65,7 @@ class OllamaCLITaskRunnerTest {
             .modelCachePath(Property.ofValue("   "))
             .build();
 
-        RunContext runContext = runContextWithVolumeEnabled(TestsUtils.mockRunContext(runContextFactory, task, Map.of()), true);
+        RunContext runContext = TestsUtils.mockRunContext(runContextFactory, task, Map.of());
 
         var error = assertThrows(IllegalArgumentException.class, () -> task.run(runContext));
         assertThat(error.getMessage(), is("modelCachePath must not be blank"));
@@ -88,46 +87,34 @@ class OllamaCLITaskRunnerTest {
     }
 
     @Test
-    void shouldRejectEnableModelCachingWhenHostIsSet() throws Exception {
+    void shouldIgnoreCachingOptionsWhenHostIsSet() throws Exception {
         OllamaCLI task = OllamaCLI.builder()
             .id("ollama")
             .type(OllamaCLI.class.getName())
             .commands(Property.ofValue(List.of("ollama list")))
             .host(Property.ofValue("http://remote:11434"))
             .enableModelCaching(Property.ofValue(true))
-            .build();
-
-        RunContext runContext = TestsUtils.mockRunContext(runContextFactory, task, Map.of());
-
-        var error = assertThrows(IllegalArgumentException.class, () -> task.configureTaskRunner(runContext));
-        assertThat(error.getMessage(), is("enableModelCaching cannot be used together with host"));
-    }
-
-    @Test
-    void shouldRejectModelCachePathWhenHostIsSet() throws Exception {
-        OllamaCLI task = OllamaCLI.builder()
-            .id("ollama")
-            .type(OllamaCLI.class.getName())
-            .commands(Property.ofValue(List.of("ollama list")))
-            .host(Property.ofValue("http://remote:11434"))
-            .enableModelCaching(Property.ofValue(false))
             .modelCachePath(Property.ofValue("/tmp/.ollama"))
             .build();
 
         RunContext runContext = TestsUtils.mockRunContext(runContextFactory, task, Map.of());
+        var runner = task.configureTaskRunner(runContext);
 
-        var error = assertThrows(IllegalArgumentException.class, () -> task.configureTaskRunner(runContext));
-        assertThat(error.getMessage(), is("modelCachePath cannot be used when host is set"));
+        assertThat(runner, is(task.getTaskRunner()));
     }
 
-    private static RunContext runContextWithVolumeEnabled(RunContext runContext, boolean volumeEnabled) throws Exception {
-        if (!(runContext instanceof DefaultRunContext defaultRunContext)) {
-            return runContext;
-        }
-        var clone = defaultRunContext.clone();
-        Method setPluginConfiguration = DefaultRunContext.class.getDeclaredMethod("setPluginConfiguration", Map.class);
-        setPluginConfiguration.setAccessible(true);
-        setPluginConfiguration.invoke(clone, Map.of(OllamaCLI.VOLUME_ENABLED_CONFIG, volumeEnabled));
-        return clone;
+    @Test
+    void shouldPreserveUserVolumesNextToCacheVolume() throws Exception {
+        OllamaCLI task = OllamaCLI.builder()
+            .id("ollama")
+            .type(OllamaCLI.class.getName())
+            .commands(Property.ofValue(List.of("ollama list")))
+            .taskRunner(OllamaDocker.builder().type(OllamaDocker.class.getName()).volumes(List.of("/data:/data")).build())
+            .build();
+
+        RunContext runContext = TestsUtils.mockRunContext(runContextFactory, task, Map.of());
+        var runner = (Docker) task.configureTaskRunner(runContext);
+
+        assertThat(runner.getVolumes(), contains("/data:/data", "kestra-ollama-cache:/root/.ollama"));
     }
 }

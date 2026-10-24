@@ -5,7 +5,6 @@ import java.util.List;
 import java.util.Map;
 
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 
 import io.kestra.core.junit.annotations.KestraTest;
 import io.kestra.core.models.property.Property;
@@ -14,6 +13,10 @@ import io.kestra.core.runners.RunContextFactory;
 import io.kestra.core.utils.IdUtils;
 import io.kestra.core.utils.TestsUtils;
 import io.kestra.plugin.ollama.cli.OllamaCLI;
+
+import jakarta.inject.Inject;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 
 import jakarta.inject.Inject;
 
@@ -118,13 +121,9 @@ class OllamaCLITest {
             .id(OllamaCLI.class.getSimpleName() + IdUtils.create())
             .type(OllamaCLI.class.getName())
             .auth(OllamaCLI.Auth.builder().apiKey(Property.ofValue(System.getenv("OLLAMA_API_KEY"))).build())
-            .commands(
-                Property.ofValue(
-                    List.of(
-                        "ollama run gpt-oss:20b \"Hello\" > output.txt"
-                    )
-                )
-            )
+            .commands(Property.ofValue(List.of(
+                "ollama run gpt-oss:20b \"Hello\" > output.txt"
+            )))
             .outputFiles(Property.ofValue(List.of("output.txt")))
             .build();
 
