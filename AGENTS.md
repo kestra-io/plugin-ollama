@@ -22,6 +22,7 @@ Single-module plugin. Source packages under `io.kestra.plugin`:
 ### Key Plugin Classes
 
 - `io.kestra.plugin.ollama.cli.OllamaCLI`
+- `io.kestra.plugin.ollama.cli.OllamaDocker`
 
 ### Project Structure
 
