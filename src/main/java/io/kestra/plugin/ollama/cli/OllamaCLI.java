@@ -138,14 +138,14 @@ public class OllamaCLI extends Task implements RunnableTask<ScriptOutput>, Names
     @Schema(
         title = "Task runner used for execution",
         description = """
-            Defaults to `io.kestra.plugin.ollama.cli.OllamaDocker`.
-            The stock `io.kestra.plugin.scripts.runner.docker.Docker` runner has no task-level `volume-enabled` property; enable Docker volume mounts in Kestra plugin configuration instead.
+            Defaults to the stock `io.kestra.plugin.scripts.runner.docker.Docker` runner, which has no task-level `volume-enabled` property; enable Docker volume mounts in Kestra plugin configuration instead.
+            Set `io.kestra.plugin.ollama.cli.OllamaDocker` to apply an Ollama-only plugin configuration.
             """
     )
     @PluginProperty(group = "execution")
     @Builder.Default
     @Valid
-    private TaskRunner<?> taskRunner = OllamaDocker.instance();
+    private TaskRunner<?> taskRunner = Docker.instance();
 
     @Schema(
         title = "Container image for the runner",
@@ -273,12 +273,7 @@ public class OllamaCLI extends Task implements RunnableTask<ScriptOutput>, Names
 
     static boolean dockerVolumesAllowed(RunContext runContext, Docker dockerRunner) {
         // the runner reads `volume-enabled` from its own plugin configuration, so gate on the same one
-        var configured = runContext.cloneForPlugin(dockerRunner).<Boolean> pluginConfiguration(VOLUME_ENABLED_CONFIG);
-        if (configured.isPresent() || !(dockerRunner instanceof OllamaDocker)) {
-            return configured.orElse(false);
-        }
-        // keep honoring existing admin configuration of the stock Docker runner when OllamaDocker has none
-        return runContext.cloneForPlugin(Docker.instance()).<Boolean> pluginConfiguration(VOLUME_ENABLED_CONFIG).orElse(false);
+        return runContext.cloneForPlugin(dockerRunner).<Boolean> pluginConfiguration(VOLUME_ENABLED_CONFIG).orElse(false);
     }
 
     private String resolveModelCacheVolume(RunContext runContext) throws IllegalVariableEvaluationException {

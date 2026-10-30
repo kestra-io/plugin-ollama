@@ -19,7 +19,7 @@ import lombok.experimental.SuperBuilder;
 @Schema(
     title = "Docker task runner for Ollama CLI tasks",
     description = """
-        Docker-based task runner used by default for `OllamaCLI`.
+        Optional Docker-based task runner for `OllamaCLI`, with its own plugin configuration type.
         The stock `io.kestra.plugin.scripts.runner.docker.Docker` class does not accept a task-level `volume-enabled` property.
         Model cache volume mounts are added by `OllamaCLI` only when Docker volume mounts are already allowed in Kestra plugin configuration (`volume-enabled: true` for this runner type).
         """

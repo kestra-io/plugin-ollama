@@ -29,6 +29,6 @@ kestra:
 
 `modelCachePath` is a free-form host path. It is only honored when an administrator has enabled `volume-enabled` for the runner, so restrict that setting accordingly.
 
-`OllamaCLI` does not override an administrator `volume-enabled: false` policy. Model cache mounts are added only when volume mounts are already allowed server-side. Use `io.kestra.plugin.ollama.cli.OllamaDocker` as the task runner type (the default) so plugin configuration applies to Ollama runs. When no `OllamaDocker` configuration sets `volume-enabled`, the stock `Docker` plugin configuration is used as a fallback, so existing installs keep their behavior.
+`OllamaCLI` does not override an administrator `volume-enabled: false` policy. Model cache mounts are added only when volume mounts are already allowed server-side. The default task runner is the stock `Docker` runner, so existing plugin configuration for it keeps applying. Set `io.kestra.plugin.ollama.cli.OllamaDocker` as the task runner type to use an Ollama-only plugin configuration.
 
 Remote `host` connections do not use local model caching; `enableModelCaching` and `modelCachePath` are ignored (a warning is logged) when `host` is set.

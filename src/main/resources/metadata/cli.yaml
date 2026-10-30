@@ -2,7 +2,7 @@ group: io.kestra.plugin.ollama.cli
 name: "cli"
 title: "Ollama CLI"
 description: "Tasks that execute Ollama CLI commands for model management and generation."
-body: "Define shell `commands`, optional remote `host`, and model caching when the server allows Docker volume mounts. Uses `OllamaDocker` by default (not stock `Docker` with task-level `volume-enabled`)."
+body: "Define shell `commands`, optional remote `host`, and model caching when the server allows Docker volume mounts. Uses the stock `Docker` runner by default; `OllamaDocker` is available for an Ollama-only volume policy."
 videos: []
 createdBy: "Kestra Core Team"
 managedBy: "Kestra Core Team"
