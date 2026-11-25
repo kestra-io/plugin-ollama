@@ -10,6 +10,7 @@ import io.kestra.core.junit.annotations.KestraTest;
 import io.kestra.core.models.property.Property;
 import io.kestra.core.runners.RunContext;
 import io.kestra.core.runners.RunContextFactory;
+import io.kestra.core.models.tasks.RunnableTaskException;
 import io.kestra.core.serializers.JacksonMapper;
 import io.kestra.core.utils.IdUtils;
 import io.kestra.core.utils.TestsUtils;
@@ -26,9 +27,10 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
-import static org.hamcrest.Matchers.startsWith;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.startsWith;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 @KestraTest
 class OllamaCLITest {
@@ -175,6 +177,24 @@ class OllamaCLITest {
             .build();
 
         assertThat(task.run(TestsUtils.mockRunContext(runContextFactory, task, Map.of())).getExitCode(), is(0));
+    }
+
+    @Test
+    void failFastFromAFlowStopsTheRunOnAFailingLine() throws Exception {
+        var task = JacksonMapper.ofYaml().readValue("""
+            id: ollama
+            type: io.kestra.plugin.ollama.cli.OllamaCLI
+            taskRunner:
+              type: io.kestra.plugin.core.runner.Process
+            host: http://remote:11434
+            failFast: true
+            commands:
+              - "false"
+              - echo ok
+            """, OllamaCLI.class);
+
+        var exception = assertThrows(RunnableTaskException.class, () -> task.run(TestsUtils.mockRunContext(runContextFactory, task, Map.of())));
+        assertThat(exception.getMessage(), containsString("exit code 1"));
     }
 
     @Test

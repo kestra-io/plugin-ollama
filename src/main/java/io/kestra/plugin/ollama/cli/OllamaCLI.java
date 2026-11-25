@@ -159,7 +159,7 @@ public class OllamaCLI extends AbstractExecScript implements RunnableTask<Script
     @Schema(
         title = "Fail fast on the first failing command",
         description = """
-            If true, `set -e` is prepended to `beforeCommands`, so the first failing line stops the run.
+            If true, `set -e` is prepended to the script, so the first failing line in `beforeCommands` or `commands` stops the run.
             Defaults to false, so a failing line does not stop the run.
             """
     )
@@ -231,7 +231,7 @@ public class OllamaCLI extends AbstractExecScript implements RunnableTask<Script
         // the wrapper renders with the runner variables (workingDir, checkpoints), a plain render would not
         beforeCommands.addAll(wrapper.renderCommands(runContext, this.getBeforeCommands()));
 
-        // getEnv adds OLLAMA_HOST and the API key to the user env, replaces the map commands() set (immutable for Property.ofValue)
+        // replaces the env set by commands() to add OLLAMA_HOST and OLLAMA_API_KEY
         return wrapper
             .withInterpreter(this.getInterpreter())
             .withBeforeCommands(beforeCommands.isEmpty() ? null : Property.ofValue(beforeCommands))
