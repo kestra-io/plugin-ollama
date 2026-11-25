@@ -12,6 +12,7 @@ import io.kestra.core.runners.RunContext;
 import io.kestra.core.runners.RunContextFactory;
 import io.kestra.core.utils.IdUtils;
 import io.kestra.core.utils.TestsUtils;
+import io.kestra.plugin.core.runner.Process;
 import io.kestra.plugin.ollama.cli.OllamaCLI;
 
 import jakarta.inject.Inject;
@@ -21,7 +22,9 @@ import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import jakarta.inject.Inject;
 
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
@@ -133,5 +136,53 @@ class OllamaCLITest {
 
         assertThat(output, notNullValue());
         assertThat(output.getExitCode(), is(0));
+    }
+
+    @Test
+    void remoteHostRunsUserBeforeCommandsWithTheInjectedEnv() throws Exception {
+        var task = OllamaCLI.builder()
+            .id(IdUtils.create())
+            .type(OllamaCLI.class.getName())
+            .taskRunner(Process.instance())
+            .host(Property.ofValue("http://remote:11434"))
+            .env(Property.ofValue(Map.of("MY_KEY", "MY_VALUE")))
+            .beforeCommands(Property.ofValue(List.of("export B=before")))
+            .commands(Property.ofValue(List.of(
+                "echo \"::{\\\"outputs\\\":{\\\"host\\\":\\\"$OLLAMA_HOST\\\",\\\"env\\\":\\\"$MY_KEY\\\",\\\"before\\\":\\\"$B\\\"}}::\""
+            )))
+            .build();
+
+        var output = task.run(TestsUtils.mockRunContext(runContextFactory, task, Map.of()));
+
+        assertThat(output.getVars().get("host"), is("http://remote:11434"));
+        assertThat(output.getVars().get("env"), is("MY_VALUE"));
+        assertThat(output.getVars().get("before"), is("before"));
+    }
+
+    @Test
+    void failingLineDoesNotStopTheRunByDefault() throws Exception {
+        var task = OllamaCLI.builder()
+            .id(IdUtils.create())
+            .type(OllamaCLI.class.getName())
+            .taskRunner(Process.instance())
+            .host(Property.ofValue("http://remote:11434"))
+            .commands(Property.ofValue(List.of("false", "echo ok")))
+            .build();
+
+        assertThat(task.run(TestsUtils.mockRunContext(runContextFactory, task, Map.of())).getExitCode(), is(0));
+    }
+
+    @Test
+    void toStringDoesNotExposeSecrets() {
+        var task = OllamaCLI.builder()
+            .id(IdUtils.create())
+            .type(OllamaCLI.class.getName())
+            .commands(Property.ofValue(List.of("ollama list")))
+            .env(Property.ofValue(Map.of("SECRET_KEY", "super-secret-value")))
+            .auth(OllamaCLI.Auth.builder().apiKey(Property.ofValue("super-secret-api-key")).build())
+            .build();
+
+        assertThat(task.toString(), not(containsString("super-secret-value")));
+        assertThat(task.toString(), not(containsString("super-secret-api-key")));
     }
 }

@@ -11,11 +11,12 @@ import io.kestra.core.models.annotations.Example;
 import io.kestra.core.models.annotations.Plugin;
 import io.kestra.core.models.annotations.PluginProperty;
 import io.kestra.core.models.property.Property;
-import io.kestra.core.models.tasks.*;
+import io.kestra.core.models.tasks.RunnableTask;
 import io.kestra.core.models.tasks.runners.TaskRunner;
 import io.kestra.core.runners.RunContext;
+import io.kestra.plugin.scripts.exec.AbstractExecScript;
+import io.kestra.plugin.scripts.exec.scripts.models.DockerOptions;
 import io.kestra.plugin.scripts.exec.scripts.models.ScriptOutput;
-import io.kestra.plugin.scripts.exec.scripts.runners.CommandsWrapper;
 import io.kestra.plugin.scripts.runner.docker.Docker;
 
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -25,13 +26,17 @@ import lombok.*;
 import lombok.experimental.SuperBuilder;
 
 @SuperBuilder
-@ToString
+// callSuper = false: the inherited env has no @ToString.Exclude, keeps rendered secrets out
+@ToString(callSuper = false)
 @EqualsAndHashCode
 @Getter
 @NoArgsConstructor
 @Schema(
     title = "Run Ollama CLI commands in flows",
-    description = "Executes rendered Ollama CLI commands inside the configured task runner. Starts a transient `ollama serve` when no remote host is provided and can mount a Docker volume for model caching when the server allows Docker volume mounts."
+    description = """
+        Executes rendered Ollama CLI commands inside the configured task runner. Starts a transient `ollama serve` when no remote host is provided, before any `beforeCommands`, and can mount a Docker volume for model caching when the server allows Docker volume mounts.
+        The inherited `warningOnStdErr`, `runner` and `docker` properties are ignored, use `taskRunner`.
+        """
 )
 @Plugin(
     examples = {
@@ -114,7 +119,7 @@ import lombok.experimental.SuperBuilder;
         )
     }
 )
-public class OllamaCLI extends Task implements RunnableTask<ScriptOutput>, NamespaceFilesInterface, InputFilesInterface, OutputFilesInterface {
+public class OllamaCLI extends AbstractExecScript implements RunnableTask<ScriptOutput> {
     private static final String DEFAULT_IMAGE = "ollama/ollama";
     private static final String OLLAMA_CONTAINER_MODELS_PATH = "/root/.ollama";
     private static final String OLLAMA_CLOUD_HOST = "https://ollama.com";
@@ -122,18 +127,11 @@ public class OllamaCLI extends Task implements RunnableTask<ScriptOutput>, Names
 
     @Schema(
         title = "Commands executed by Ollama CLI",
-        description = "Rendered then executed with `/bin/sh -c` in order. Include any `sync` calls before cleanup commands if output files need to be persisted."
+        description = "Rendered then executed through the `interpreter` (`/bin/sh -c` by default) in order. Include any `sync` calls before cleanup commands if output files need to be persisted."
     )
     @NotNull
     @PluginProperty(group = "main")
     protected Property<List<String>> commands;
-
-    @Schema(
-        title = "Additional environment variables",
-        description = "Optional key/value pairs merged into the process environment. When `host` is set, `OLLAMA_HOST` is injected automatically."
-    )
-    @PluginProperty(group = "execution")
-    protected Property<Map<String, String>> env;
 
     @Schema(
         title = "Task runner used for execution",
@@ -155,14 +153,16 @@ public class OllamaCLI extends Task implements RunnableTask<ScriptOutput>, Names
     @PluginProperty(group = "execution")
     private Property<String> containerImage = Property.ofValue(DEFAULT_IMAGE);
 
-    @PluginProperty(group = "source")
-    private NamespaceFiles namespaceFiles;
-
-    @PluginProperty(group = "source")
-    private Object inputFiles;
-
-    @PluginProperty(group = "destination")
-    private Property<List<String>> outputFiles;
+    @Schema(
+        title = "Fail fast on the first failing command",
+        description = """
+            If true, `set -e` is prepended to `beforeCommands`, so the first failing line stops the run.
+            Defaults to false, so a failing line does not stop the run.
+            """
+    )
+    @Builder.Default
+    @PluginProperty(group = "execution")
+    protected Property<Boolean> failFast = Property.ofValue(false);
 
     @Schema(
         title = "Persist Ollama model cache",
@@ -203,15 +203,13 @@ public class OllamaCLI extends Task implements RunnableTask<ScriptOutput>, Names
 
     @Override
     public ScriptOutput run(RunContext runContext) throws Exception {
-        var renderedOutputFiles = runContext.render(this.outputFiles).asList(String.class);
-
-        Map<String, String> envs = getEnv(runContext);
+        var rOutputFiles = runContext.render(this.getOutputFiles()).asList(String.class);
 
         TaskRunner<?> configuredTaskRunner = configureTaskRunner(runContext);
 
         var originalCommands = runContext.render(this.commands).asList(String.class);
 
-        var needSync = !renderedOutputFiles.isEmpty();
+        var needSync = !rOutputFiles.isEmpty();
         var hasCleanupCommand = originalCommands.stream().anyMatch(cmd -> cmd.contains("ollama rm"));
 
         if (needSync && hasCleanupCommand) {
@@ -221,22 +219,27 @@ public class OllamaCLI extends Task implements RunnableTask<ScriptOutput>, Names
 
         }
 
-        CommandsWrapper commands = new CommandsWrapper(runContext)
-            .withTaskRunner(configuredTaskRunner)
-            .withContainerImage(runContext.render(this.containerImage).as(String.class).orElse(DEFAULT_IMAGE))
-            .withInterpreter(Property.ofValue(List.of("/bin/sh", "-c")))
-            .withBeforeCommands(
-                host == null
-                    ? Property.ofValue(List.of("ollama serve & sleep 5"))
-                    : null
-            )
-            .withCommands(Property.ofValue(originalCommands))
-            .withEnv(envs)
-            .withNamespaceFiles(namespaceFiles)
-            .withInputFiles(inputFiles)
-            .withOutputFiles(renderedOutputFiles.isEmpty() ? null : renderedOutputFiles);
+        var beforeCommands = new ArrayList<String>();
+        if (host == null) {
+            beforeCommands.add("ollama serve & sleep 5");
+        }
+        beforeCommands.addAll(runContext.render(this.getBeforeCommands()).asList(String.class));
 
-        return commands.run();
+        // getEnv adds OLLAMA_HOST and the API key to the user env, replaces the map commands() set (immutable for Property.ofValue)
+        return this.commands(runContext)
+            .withTaskRunner(configuredTaskRunner)
+            .withInterpreter(this.getInterpreter())
+            .withBeforeCommands(beforeCommands.isEmpty() ? null : Property.ofValue(beforeCommands))
+            .withBeforeCommandsWithOptions(true)
+            .withCommands(Property.ofValue(originalCommands))
+            .withEnv(getEnv(runContext))
+            .run();
+    }
+
+    // The task never had a docker property: drop the 1.3 parent one so taskRunner and the cache volume always apply
+    @Override
+    protected DockerOptions injectDefaults(RunContext runContext, DockerOptions original) {
+        return null;
     }
 
     protected TaskRunner<?> configureTaskRunner(RunContext runContext) throws Exception {
@@ -294,9 +297,9 @@ public class OllamaCLI extends Task implements RunnableTask<ScriptOutput>, Names
     public Map<String, String> getEnv(RunContext runContext) throws IllegalVariableEvaluationException {
         Map<String, String> envs = new HashMap<>();
 
-        var renderedEnv = runContext.render(this.env).asMap(String.class, String.class);
-        if (!renderedEnv.isEmpty()) {
-            envs.putAll(renderedEnv);
+        var rEnv = runContext.render(this.getEnv()).asMap(String.class, String.class);
+        if (!rEnv.isEmpty()) {
+            envs.putAll(rEnv);
         }
 
         String renderedHost = this.host != null ? runContext.render(this.host).as(String.class).orElse(null) : null;
