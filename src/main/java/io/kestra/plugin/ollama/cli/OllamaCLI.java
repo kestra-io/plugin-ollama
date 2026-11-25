@@ -35,7 +35,7 @@ import lombok.experimental.SuperBuilder;
     title = "Run Ollama CLI commands in flows",
     description = """
         Executes rendered Ollama CLI commands inside the configured task runner. Starts a transient `ollama serve` when no remote host is provided, before any `beforeCommands`, and can mount a Docker volume for model caching when the server allows Docker volume mounts.
-        The inherited `warningOnStdErr`, `runner` and `docker` properties are ignored, use `taskRunner`.
+        The inherited `warningOnStdErr` and `runner` properties are ignored, and so is `docker` on Kestra 1.3. Use `taskRunner`.
         """
 )
 @Plugin(
@@ -127,7 +127,10 @@ public class OllamaCLI extends AbstractExecScript implements RunnableTask<Script
 
     @Schema(
         title = "Commands executed by Ollama CLI",
-        description = "Rendered then executed through the `interpreter` (`/bin/sh -c` by default) in order. Include any `sync` calls before cleanup commands if output files need to be persisted."
+        description = """
+            Rendered then executed through the `interpreter` (`/bin/sh -c` by default) in order.
+            Include any `sync` calls before cleanup commands if output files need to be persisted.
+            """
     )
     @NotNull
     @PluginProperty(group = "main")
@@ -219,15 +222,17 @@ public class OllamaCLI extends AbstractExecScript implements RunnableTask<Script
 
         }
 
+        var wrapper = this.commands(runContext).withTaskRunner(configuredTaskRunner);
+
         var beforeCommands = new ArrayList<String>();
         if (host == null) {
             beforeCommands.add("ollama serve & sleep 5");
         }
-        beforeCommands.addAll(runContext.render(this.getBeforeCommands()).asList(String.class));
+        // the wrapper renders with the runner variables (workingDir, checkpoints), a plain render would not
+        beforeCommands.addAll(wrapper.renderCommands(runContext, this.getBeforeCommands()));
 
         // getEnv adds OLLAMA_HOST and the API key to the user env, replaces the map commands() set (immutable for Property.ofValue)
-        return this.commands(runContext)
-            .withTaskRunner(configuredTaskRunner)
+        return wrapper
             .withInterpreter(this.getInterpreter())
             .withBeforeCommands(beforeCommands.isEmpty() ? null : Property.ofValue(beforeCommands))
             .withBeforeCommandsWithOptions(true)

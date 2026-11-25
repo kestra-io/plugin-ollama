@@ -10,6 +10,7 @@ import io.kestra.core.models.property.Property;
 import io.kestra.core.runners.RunContextFactory;
 import io.kestra.core.utils.IdUtils;
 import io.kestra.core.utils.TestsUtils;
+import io.kestra.plugin.scripts.exec.scripts.models.DockerOptions;
 import io.kestra.plugin.scripts.runner.docker.Docker;
 
 import jakarta.inject.Inject;
@@ -118,5 +119,21 @@ class OllamaCLITaskRunnerTest {
         var runner = (Docker) task.configureTaskRunner(runContext);
 
         assertThat(runner.getVolumes(), contains("/data:/data", "kestra-ollama-cache:/root/.ollama"));
+    }
+
+    @Test
+    void runMountsTheCacheVolumeEvenWhenDockerOptionsAreSet() throws Exception {
+        var task = OllamaCLI.builder()
+            .id(IdUtils.create())
+            .type(OllamaCLI.class.getName())
+            .taskRunner(OllamaDocker.instance())
+            .enableModelCaching(Property.ofValue(true))
+            .docker(DockerOptions.builder().image("ollama/ollama").build())
+            .commands(Property.ofValue(List.of("grep -q /root/.ollama /proc/mounts")))
+            .build();
+
+        var output = task.run(TestsUtils.mockRunContext(runContextFactory, task, Map.of()));
+
+        assertThat(output.getExitCode(), is(0));
     }
 }
