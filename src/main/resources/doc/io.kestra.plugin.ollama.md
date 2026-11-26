@@ -32,3 +32,5 @@ kestra:
 `OllamaCLI` does not override an administrator `volume-enabled: false` policy. Model cache mounts are added only when volume mounts are already allowed server-side. The default task runner is the stock `Docker` runner, so existing plugin configuration for it keeps applying. Set `io.kestra.plugin.ollama.cli.OllamaDocker` as the task runner type to use an Ollama-only plugin configuration.
 
 Remote `host` connections do not use local model caching; `enableModelCaching` and `modelCachePath` are ignored (a warning is logged) when `host` is set.
+
+On Kestra 2.1 and later, `durable: true` (beta) passes the keys a command printed as `::{"checkpoints": {...}}::` to the next attempt as `CHECKPOINTS_<KEY>` environment variables, so commands can skip the steps already done.
